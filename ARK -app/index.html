@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🜁.R.K · fluid canvas</title>
+    
+    <!-- PWA manifest link -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- theme color for Android status bar -->
+    <meta name="theme-color" content="#0f0e0b">
+    
+    <!-- apple touch icon (for iOS, but kept for completeness) -->
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #0f0e0b;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(70, 50, 30, 0.25) 0%, transparent 30%),
+                radial-gradient(circle at 90% 70%, rgba(30, 60, 40, 0.3) 0%, transparent 40%),
+                repeating-linear-gradient(45deg, rgba(200, 180, 140, 0.02) 0px, rgba(200, 180, 140, 0.02) 2px, transparent 2px, transparent 8px);
+            color: #e2d9c7;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+            touch-action: none;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap');
+
+        #arrowCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            filter: drop-shadow(0 0 6px #5f7452);
+        }
+
+        .node-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            touch-action: none;
+        }
+
+        .node {
+            position: absolute;
+            min-width: 160px;
+            max-width: 220px;
+            background: rgba(25, 22, 18, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(160, 130, 100, 0.3);
+            border-radius: 28px;
+            padding: 1rem 1rem;
+            color: #e2d9c7;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 10px 20px -10px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(220, 190, 150, 0.1);
+            transition: box-shadow 0.2s, border-color 0.2s;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            z-index: 10;
+            will-change: left, top;
+            touch-action: none;
+        }
+
+        @media (max-width: 600px) {
+            .node {
+                min-width: 140px;
+                padding: 0.8rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        .node:hover {
+            border-color: rgba(200, 160, 120, 0.7);
+            box-shadow: 0 15px 25px -12px #000, 0 0 0 1px #baa07760;
+        }
+
+        .node.selected {
+            border-color: #d4b68a;
+            box-shadow: 0 0 0 3px #d4b68a80, 0 15px 25px -12px #000;
+            transform: scale(1.02);
+            transition: all 0.15s ease;
+        }
+
+        .node.connection-source {
+            border-color: #a8c096;
+            box-shadow: 0 0 0 4px #a8c09680, 0 15px 25px -12px #000;
+        }
+
+        .node-header {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 0.5rem;
+            font-weight: 450;
+            color: #ead0b2;
+            border-bottom: 1px solid #5f604c40;
+            padding-bottom: 0.3rem;
+            cursor: move;
+            touch-action: none;
+        }
+
+        .node-header span {
+            font-size: 1.1rem;
+            min-width: 22px;
+            text-align: center;
+        }
+
+        .node-content {
+            font-size: 0.85rem;
+            color: #c2b69b;
+            cursor: move;
+            white-space: pre-wrap;
+            touch-action: none;
+        }
+
+        .node-header[contenteditable="true"],
+        .node-content[contenteditable="true"] {
+            cursor: text;
+            outline: none;
+            border-radius: 4px;
+            background: rgba(220, 190, 150, 0.15);
+            touch-action: manipulation;
+        }
+
+        .node-delete {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #3f3a30;
+            border: 2px solid #a88f72;
+            color: #dac29c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            cursor: pointer;
+            opacity: 0.9;
+            pointer-events: auto;
+            z-index: 20;
+            font-family: monospace;
+            box-shadow: 0 2px 8px black;
+        }
+
+        .node-delete:active {
+            background: #5f4f3a;
+            transform: scale(1.1);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(18, 16, 12, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #5f604c;
+            border-radius: 40px;
+            padding: 0.6rem 1.2rem;
+            display: flex;
+            gap: 0.6rem;
+            z-index: 100;
+            color: #b7a88b;
+            font-size: 0.8rem;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 95%;
+        }
+
+        .controls button, .controls label {
+            background: transparent;
+            border: none;
+            color: #dacbb6;
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 0.4rem 0.8rem;
+            border-radius: 30px;
+            transition: 0.2s;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid transparent;
+            touch-action: manipulation;
+            white-space: nowrap;
+        }
+
+        .controls button:hover, .controls label:hover {
+            background: #2d3224;
+            border-color: #baa077;
+            color: #eadbbd;
+        }
+
+        .controls button:active, .controls label:active {
+            background: #2d3224;
+            border-color: #baa077;
+        }
+
+        #loadFile {
+            display: none;
+        }
+
+        .logo-badge {
+            position: fixed;
+            top: 12px;
+            left: 16px;
+            font-size: 1.8rem;
+            color: #ece6d7;
+            text-shadow: 0 0 15px rgba(180, 140, 100, 0.4);
+            z-index: 100;
+            opacity: 0.8;
+            letter-spacing: 2px;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .logo-badge span {
+            font-size: 0.9rem;
+            margin-left: 6px;
+            letter-spacing: 3px;
+            color: #b7a275;
+        }
+
+        .hint {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            background: rgba(18, 16, 12, 0.8);
+            backdrop-filter: blur(4px);
+            border: 1px solid #5f604c;
+            border-radius: 30px;
+            padding: 0.3rem 1rem;
+            font-size: 0.7rem;
+            color: #b7a88b;
+            z-index: 100;
+            display: flex;
+            gap: 0.6rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            pointer-events: none;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            max-width: 70%;
+        }
+
+        .hint-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .key {
+            background: #2d3224;
+            border: 1px solid #6f5d4a;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #ead0b2;
+        }
+
+        .connection-mode-indicator {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2d4a3a;
+            color: #e2f0d6;
+            padding: 0.5rem 1.5rem;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            border: 1px solid #8fbc8f;
+            box-shadow: 0 0 20px #8fbc8f;
+            backdrop-filter: blur(4px);
+            z-index: 101;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            white-space: nowrap;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        .connection-mode-indicator.visible {
+            opacity: 1;
+        }
+
+        .save-status {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1d2e24;
+            color: #c3e0c3;
+            padding: 0.3rem 1.2rem;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            border: 1px solid #6b8f6b;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 102;
+            white-space: nowrap;
+        }
+
+        .save-status.visible {
+            opacity: 1;
+        }
+
+        .mobile-hint {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .desktop-hint {
+                display: none;
+            }
+            .mobile-hint {
+                display: flex;
+            }
+            .hint {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logo-badge">
+        🜁<span>.R.K</span>
+    </div>
+
+    <div class="connection-mode-indicator" id="connectionIndicator">
+        ⚡ tap a second node to connect
+    </div>
+
+    <div class="save-status" id="saveStatus">
+        💾 auto-saved
+    </div>
+
+    <div class="hint">
+        <div class="hint-item desktop-hint"><span class="key">⿻</span> drag</div>
+        <div class="hint-item desktop-hint"><span class="key">⇧ + click</span> <span style="color:#dac29c;">→</span> connect</div>
+        <div class="hint-item mobile-hint"><span class="key">👆</span> drag</div>
+        <div class="hint-item mobile-hint"><span class="key">tap & hold</span> → connect</div>
+        <div class="hint-item"><span class="key">⚊</span> double-tap to edit</div>
+    </div>
+
+    <canvas id="arrowCanvas"></canvas>
+    <div class="node-container" id="nodeContainer"></div>
+
+    <div class="controls">
+        <button id="addNodeBtn">+ new</button>
+        <button id="clearArrowsBtn">clear arrows</button>
+        <button id="exportBtn">💾 save file</button>
+        <label for="loadFile">📂 load file</label>
+        <input type="file" id="loadFile" accept=".json">
+        <button id="resetBtn">reset</button>
+    </div>
+
+    <!-- service worker registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker failed', err));
+            });
+        }
+    </script>
+
+    <script>
+        (function() {
+            // ---------- state ----------
+            let nodes = [];
+            let connections = [];
+            let nextId = 1;
+            
+            // drag state
+            let draggingId = null;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            
+            // connection mode
+            let connectingFromId = null;
+            let connectionLongPressTimer = null;
+
+            // canvas
+            const canvas = document.getElementById('arrowCanvas');
+            const ctx = canvas.getContext('2d');
+            const container = document.getElementById('nodeContainer');
+            const connectionIndicator = document.getElementById('connectionIndicator');
+            const saveStatus = document.getElementById('saveStatus');
+
+            // auto-save timer
+            let autoSaveTimer = null;
+
+            // animation
+            let animationFrame = null;
+            let needsRedraw = true;
+
+            // ---------- resize ----------
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                needsRedraw = true;
+            }
+            window.addEventListener('resize', resizeCanvas);
+
+            // ---------- save/load ----------
+            function saveToLocalStorage() {
+                const data = {
+                    nodes: nodes.map(n => ({
+                        id: n.id,
+                        x: n.x,
+                        y: n.y,
+                        title: n.title,
+                        content: n.content,
+                        symbol: n.symbol
+                    })),
+                    connections: connections,
+                    nextId: nextId
+                };
+                localStorage.setItem('arkCanvas', JSON.stringify(data));
+                
+                // show save status
+                saveStatus.classList.add('visible');
+                setTimeout(() => {
+                    saveStatus.classList.remove('visible');
+                }, 1000);
+            }
+
+            function loadFromLocalStorage() {
+                const saved = localStorage.getItem('arkCanvas');
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        
+                        // clear existing nodes
+                        nodes.forEach(node => {
+                            const el = document.getElementById(`node-${node.id}`);
+                            if (el) el.remove();
+                        });
+                        
+                        nodes = data.nodes;
+                        connections = data.connections;
+                        nextId = data.nextId || 1;
+                        
+                        // recreate nodes
+                        nodes.forEach(node => {
+                            const el = createNodeElement(node);
+                            container.appendChild(el);
+                        });
+                        
+                        requestRedraw();
+                        return true;
+                    } catch (e) {
+                        console.error('failed to load', e);
+                    }
+                }
+                return false;
+            }
+
+            function exportToFile() {
+                const data = {
+                    nodes: nodes.map(n => ({
+                        id: n.id,
+                        x: n.x,
+                        y: n.y,
+                        title: n.title,
+                        content: n.content,
+                        symbol: n.symbol
+                    })),
+                    connections: connections,
+                    nextId: nextId
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ark-canvas-${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                saveStatus.innerText = '📁 file saved';
+                saveStatus.classList.add('visible');
+                setTimeout(() => {
+                    saveStatus.classList.remove('visible');
+                    saveStatus.innerText = '💾 auto-saved';
+                }, 2000);
+            }
+
+            function importFromFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        // clear existing
+                        nodes.forEach(node => {
+                            const el = document.getElementById(`node-${node.id}`);
+                            if (el) el.remove();
+                        });
+                        
+                        nodes = data.nodes;
+                        connections = data.connections || [];
+                        nextId = data.nextId || 1;
+                        
+                        nodes.forEach(node => {
+                            const el = createNodeElement(node);
+                            container.appendChild(el);
+                        });
+                        
+                        requestRedraw();
+                        
+                        saveStatus.innerText = '📂 file loaded';
+                        saveStatus.classList.add('visible');
+                        setTimeout(() => {
+                            saveStatus.classList.remove('visible');
+                            saveStatus.innerText = '💾 auto-saved';
+                        }, 2000);
+                        
+                        // save to localStorage after import
+                        setTimeout(() => saveToLocalStorage(), 100);
+                    } catch (err) {
+                        alert('invalid file');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            // trigger auto-save (debounced)
+            function triggerAutoSave() {
+                if (autoSaveTimer) clearTimeout(autoSaveTimer);
+                autoSaveTimer = setTimeout(() => {
+                    saveToLocalStorage();
+                }, 500);
+            }
+
+            // ---------- update connection indicator ----------
+            function updateConnectionIndicator() {
+                if (connectingFromId !== null) {
+                    connectionIndicator.classList.add('visible');
+                } else {
+                    connectionIndicator.classList.remove('visible');
+                }
+            }
+
+            // ---------- draw arrows (fluid) ----------
+            function drawArrows() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (connections.length === 0) return;
+
+                ctx.lineWidth = 2.2;
+                ctx.shadowColor = '#8c9b70';
+                ctx.shadowBlur = 12;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.lineCap = 'round';
+                
+                connections.forEach(conn => {
+                    const fromNode = nodes.find(n => n.id === conn.fromId);
+                    const toNode = nodes.find(n => n.id === conn.toId);
+                    
+                    if (!fromNode || !toNode) return;
+
+                    const fromEl = document.getElementById(`node-${fromNode.id}`);
+                    const toEl = document.getElementById(`node-${toNode.id}`);
+                    
+                    if (!fromEl || !toEl) return;
+
+                    const fromRect = fromEl.getBoundingClientRect();
+                    const toRect = toEl.getBoundingClientRect();
+
+                    const fromX = fromRect.left + fromRect.width / 2;
+                    const fromY = fromRect.top + fromRect.height / 2;
+                    const toX = toRect.left + toRect.width / 2;
+                    const toY = toRect.top + toRect.height / 2;
+
+                    const dx = toX - fromX;
+                    const dy = toY - fromY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    const curveIntensity = Math.min(distance * 0.3, 80);
+                    
+                    const perpX = -dy / distance * curveIntensity;
+                    const perpY = dx / distance * curveIntensity;
+                    
+                    const cp1x = fromX + dx * 0.25 + perpX * 0.8;
+                    const cp1y = fromY + dy * 0.25 + perpY * 0.8;
+                    const cp2x = toX - dx * 0.25 + perpX * 0.8;
+                    const cp2y = toY - dy * 0.25 + perpY * 0.8;
+
+                    ctx.beginPath();
+                    ctx.moveTo(fromX, fromY);
+                    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, toX, toY);
+                    
+                    const gradient = ctx.createLinearGradient(fromX, fromY, toX, toY);
+                    gradient.addColorStop(0, '#8c9b70');
+                    gradient.addColorStop(0.6, '#b7a87b');
+                    ctx.strokeStyle = gradient;
+                    ctx.stroke();
+
+                    // arrowhead
+                    const t = 0.92;
+                    
+                    const arrowX = Math.pow(1-t, 3) * fromX + 
+                                   3 * Math.pow(1-t, 2) * t * cp1x + 
+                                   3 * (1-t) * Math.pow(t, 2) * cp2x + 
+                                   Math.pow(t, 3) * toX;
+                    
+                    const arrowY = Math.pow(1-t, 3) * fromY + 
+                                   3 * Math.pow(1-t, 2) * t * cp1y + 
+                                   3 * (1-t) * Math.pow(t, 2) * cp2y + 
+                                   Math.pow(t, 3) * toY;
+                    
+                    const dxdt = 3 * Math.pow(1-t, 2) * (cp1x - fromX) + 
+                                 6 * (1-t) * t * (cp2x - cp1x) + 
+                                 3 * Math.pow(t, 2) * (toX - cp2x);
+                    
+                    const dydt = 3 * Math.pow(1-t, 2) * (cp1y - fromY) + 
+                                 6 * (1-t) * t * (cp2y - cp1y) + 
+                                 3 * Math.pow(t, 2) * (toY - cp2y);
+                    
+                    const angle = Math.atan2(dydt, dxdt);
+                    
+                    ctx.shadowBlur = 15;
+                    ctx.fillStyle = '#cbb88c';
+                    
+                    const headLength = 14;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(arrowX, arrowY);
+                    ctx.lineTo(
+                        arrowX - headLength * Math.cos(angle - 0.25),
+                        arrowY - headLength * Math.sin(angle - 0.25)
+                    );
+                    ctx.lineTo(
+                        arrowX - headLength * Math.cos(angle + 0.25),
+                        arrowY - headLength * Math.sin(angle + 0.25)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+                });
+
+                ctx.shadowBlur = 0;
+            }
+
+            function animate() {
+                if (needsRedraw) {
+                    drawArrows();
+                    needsRedraw = false;
+                }
+                animationFrame = requestAnimationFrame(animate);
+            }
+
+            function requestRedraw() {
+                needsRedraw = true;
+            }
+
+            // ---------- editable fields ----------
+            function makeEditable(element, nodeId, field) {
+                element.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    element.setAttribute('contenteditable', 'true');
+                    element.focus();
+                });
+
+                element.addEventListener('blur', () => {
+                    element.removeAttribute('contenteditable');
+                    const node = nodes.find(n => n.id === nodeId);
+                    if (node) {
+                        if (field === 'title') node.title = element.innerText;
+                        else if (field === 'content') node.content = element.innerText;
+                        else if (field === 'symbol') node.symbol = element.innerText;
+                        triggerAutoSave();
+                    }
+                });
+
+                element.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        element.blur();
+                    }
+                });
+            }
+
+            // ---------- selection helpers ----------
+            function clearNodeSelections() {
+                document.querySelectorAll('.node').forEach(el => {
+                    el.classList.remove('selected');
+                    el.classList.remove('connection-source');
+                });
+            }
+
+            function startConnection(nodeId, element) {
+                connectingFromId = nodeId;
+                clearNodeSelections();
+                element.classList.add('connection-source');
+                element.classList.add('selected');
+                updateConnectionIndicator();
+            }
+
+            function completeConnection(fromId, toId) {
+                if (fromId !== toId) {
+                    addConnection(fromId, toId);
+                }
+                clearNodeSelections();
+                connectingFromId = null;
+                updateConnectionIndicator();
+            }
+
+            function cancelConnection() {
+                clearNodeSelections();
+                connectingFromId = null;
+                updateConnectionIndicator();
+            }
+
+            // ---------- create node element ----------
+            function createNodeElement(node) {
+                const div = document.createElement('div');
+                div.id = `node-${node.id}`;
+                div.className = 'node';
+                div.style.left = node.x + 'px';
+                div.style.top = node.y + 'px';
+                
+                const header = document.createElement('div');
+                header.className = 'node-header';
+                
+                const symbolSpan = document.createElement('span');
+                symbolSpan.innerText = node.symbol || '🜁';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.innerText = node.title;
+                
+                header.appendChild(symbolSpan);
+                header.appendChild(titleSpan);
+                
+                const content = document.createElement('div');
+                content.className = 'node-content';
+                content.innerText = node.content;
+                
+                const deleteBtn = document.createElement('div');
+                deleteBtn.className = 'node-delete';
+                deleteBtn.innerHTML = '✕';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNode(node.id);
+                });
+                deleteBtn.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
+                    deleteNode(node.id);
+                });
+                
+                div.appendChild(header);
+                div.appendChild(content);
+                div.appendChild(deleteBtn);
+                
+                makeEditable(symbolSpan, node.id, 'symbol');
+                makeEditable(titleSpan, node.id, 'title');
+                makeEditable(content, node.id, 'content');
+                
+                // desktop mouse events
+                div.addEventListener('mousedown', (e) => {
+                    if (e.target.isContentEditable) return;
+                    if (e.target === deleteBtn) return;
+                    
+                    if (e.shiftKey) {
+                        e.preventDefault();
+                        if (connectingFromId === null) {
+                            startConnection(node.id, div);
+                        } else if (connectingFromId !== node.id) {
+                            completeConnection(connectingFromId, node.id);
+                        } else {
+                            cancelConnection();
+                        }
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    draggingId = node.id;
+                    
+                    const rect = div.getBoundingClientRect();
+                    dragOffsetX = e.clientX - rect.left;
+                    dragOffsetY = e.clientY - rect.top;
+                    
+                    div.style.cursor = 'grabbing';
+                });
+
+                // mobile touch events
+                div.addEventListener('touchstart', (e) => {
+                    if (e.target.isContentEditable) return;
+                    if (e.target === deleteBtn) return;
+                    
+                    e.preventDefault();
+                    
+                    const touch = e.touches[0];
+                    
+                    connectionLongPressTimer = setTimeout(() => {
+                        if (draggingId === null) {
+                            if (connectingFromId === null) {
+                                startConnection(node.id, div);
+                            }
+                        }
+                    }, 500);
+                    
+                    draggingId = node.id;
+                    
+                    const rect = div.getBoundingClientRect();
+                    dragOffsetX = touch.clientX - rect.left;
+                    dragOffsetY = touch.clientY - rect.top;
+                });
+
+                div.addEventListener('touchmove', (e) => {
+                    if (draggingId === null) return;
+                    
+                    e.preventDefault();
+                    
+                    if (connectionLongPressTimer) {
+                        clearTimeout(connectionLongPressTimer);
+                        connectionLongPressTimer = null;
+                    }
+                    
+                    const touch = e.touches[0];
+                    
+                    const node = nodes.find(n => n.id === draggingId);
+                    if (!node) return;
+                    
+                    const newX = touch.clientX - dragOffsetX;
+                    const newY = touch.clientY - dragOffsetY;
+                    
+                    const maxX = window.innerWidth - div.offsetWidth - 20;
+                    const maxY = window.innerHeight - div.offsetHeight - 20;
+                    
+                    node.x = Math.max(10, Math.min(newX, maxX));
+                    node.y = Math.max(10, Math.min(newY, maxY));
+                    
+                    div.style.left = node.x + 'px';
+                    div.style.top = node.y + 'px';
+                    
+                    requestRedraw();
+                });
+
+                div.addEventListener('touchend', (e) => {
+                    if (connectionLongPressTimer) {
+                        clearTimeout(connectionLongPressTimer);
+                        connectionLongPressTimer = null;
+                    }
+                    
+                    if (draggingId !== null) {
+                        draggingId = null;
+                        requestRedraw();
+                        triggerAutoSave();
+                    } else {
+                        if (connectingFromId !== null && connectingFromId !== node.id) {
+                            completeConnection(connectingFromId, node.id);
+                        }
+                    }
+                });
+
+                div.addEventListener('touchcancel', (e) => {
+                    if (connectionLongPressTimer) {
+                        clearTimeout(connectionLongPressTimer);
+                        connectionLongPressTimer = null;
+                    }
+                    draggingId = null;
+                });
+                
+                return div;
+            }
+
+            // ---------- drag (mouse) ----------
+            function onDrag(e) {
+                if (draggingId === null) return;
+                
+                const node = nodes.find(n => n.id === draggingId);
+                if (!node) return;
+                
+                const el = document.getElementById(`node-${draggingId}`);
+                if (!el) return;
+                
+                const newX = e.clientX - dragOffsetX;
+                const newY = e.clientY - dragOffsetY;
+                
+                const maxX = window.innerWidth - el.offsetWidth - 20;
+                const maxY = window.innerHeight - el.offsetHeight - 20;
+                
+                node.x = Math.max(10, Math.min(newX, maxX));
+                node.y = Math.max(10, Math.min(newY, maxY));
+                
+                el.style.left = node.x + 'px';
+                el.style.top = node.y + 'px';
+                
+                requestRedraw();
+            }
+
+            function onDragEnd() {
+                if (draggingId !== null) {
+                    const el = document.getElementById(`node-${draggingId}`);
+                    if (el) el.style.cursor = 'move';
+                    triggerAutoSave();
+                }
+                draggingId = null;
+                requestRedraw();
+            }
+
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', onDragEnd);
+
+            // ---------- node management ----------
+            function addNode(x, y, title = 'new thought', content = 'double-tap to edit...', symbol = '🜁') {
+                if (x === undefined) {
+                    x = window.innerWidth / 2 - 100 + (Math.random() * 60 - 30);
+                    y = window.innerHeight / 2 - 60 + (Math.random() * 60 - 30);
+                }
+                
+                const id = nextId++;
+                const node = { id, x, y, title, content, symbol };
+                nodes.push(node);
+                
+                const el = createNodeElement(node);
+                container.appendChild(el);
+                
+                requestRedraw();
+                triggerAutoSave();
+                return id;
+            }
+
+            function deleteNode(id) {
+                connections = connections.filter(c => c.fromId !== id && c.toId !== id);
+                nodes = nodes.filter(n => n.id !== id);
+                
+                const el = document.getElementById(`node-${id}`);
+                if (el) el.remove();
+                
+                if (connectingFromId === id) {
+                    cancelConnection();
+                }
+                
+                requestRedraw();
+                triggerAutoSave();
+            }
+
+            function addConnection(fromId, toId) {
+                const exists = connections.some(c => 
+                    (c.fromId === fromId && c.toId === toId) || (c.fromId === toId && c.toId === fromId)
+                );
+                
+                if (!exists && fromId !== toId) {
+                    connections.push({ fromId, toId });
+                    requestRedraw();
+                    triggerAutoSave();
+                }
+            }
+
+            function clearArrows() {
+                connections = [];
+                requestRedraw();
+                triggerAutoSave();
+            }
+
+            function resetToBlank() {
+                nodes.forEach(node => {
+                    const el = document.getElementById(`node-${node.id}`);
+                    if (el) el.remove();
+                });
+                nodes = [];
+                connections = [];
+                nextId = 1;
+                cancelConnection();
+                
+                addNode(window.innerWidth/2 - 150, window.innerHeight/2 - 80, 'first node', 'desktop: shift+click | mobile: tap & hold', '🜁');
+                addNode(window.innerWidth/2 + 120, window.innerHeight/2 + 60, 'second node', 'then tap me to connect', '🌿');
+                
+                requestRedraw();
+                triggerAutoSave();
+            }
+
+            // ---------- init ----------
+            function init() {
+                resizeCanvas();
+                
+                // try to load from localStorage
+                if (!loadFromLocalStorage()) {
+                    resetToBlank();
+                }
+                
+                document.getElementById('addNodeBtn').addEventListener('click', () => addNode());
+                document.getElementById('addNodeBtn').addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    addNode();
+                });
+                
+                document.getElementById('clearArrowsBtn').addEventListener('click', clearArrows);
+                document.getElementById('clearArrowsBtn').addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    clearArrows();
+                });
+                
+                document.getElementById('exportBtn').addEventListener('click', exportToFile);
+                document.getElementById('exportBtn').addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    exportToFile();
+                });
+                
+                document.getElementById('resetBtn').addEventListener('click', resetToBlank);
+                document.getElementById('resetBtn').addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    resetToBlank();
+                });
+                
+                document.getElementById('loadFile').addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        importFromFile(file);
+                    }
+                    e.target.value = ''; // allow reloading same file
+                });
+                
+                // background tap cancels connection
+                document.addEventListener('click', (e) => {
+                    if (e.target === canvas || e.target === container || e.target === document.body) {
+                        cancelConnection();
+                    }
+                });
+
+                document.addEventListener('touchstart', (e) => {
+                    if (e.target === canvas || e.target === container || e.target === document.body) {
+                        cancelConnection();
+                    }
+                });
+                
+                animate();
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
