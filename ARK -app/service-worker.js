@@ -1,8 +1,7 @@
-const CACHE_NAME = 'ark-canvas-v1';
 const urlsToCache = [
   './',
   './index.html',
-  './manifest.json',
+  './manifest.json',  // Keep these as relative paths
   'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap'
 ];
 
@@ -40,4 +39,5 @@ self.addEventListener('activate', event => {
       );
     })
   );
+
 });
