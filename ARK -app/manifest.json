@@ -2,7 +2,7 @@
   "name": "🜁.R.K",
   "short_name": "🜁.R.K",
   "description": "fluid mind mapping canvas",
-  "start_url": "index.html",
+  "start_url": "/https://github.com/kabeloimogele-design/ark-app/index.html",
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#0f0e0b",
@@ -49,4 +49,5 @@
       "type": "image/png"
     }
   ]
+
 }
