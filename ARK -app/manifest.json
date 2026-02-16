@@ -2,7 +2,8 @@
   "name": "🜁.R.K",
   "short_name": "🜁.R.K",
   "description": "fluid mind mapping canvas",
-  "start_url": "index.html",
+  "start_url": "/ark-app/index.html",
+"id": "/ark-app/"
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#0f0e0b",
@@ -51,5 +52,6 @@
   ]
 
 }
+
 
 
